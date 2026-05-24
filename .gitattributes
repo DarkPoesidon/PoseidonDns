@@ -1,0 +1,13 @@
+# Force LF line endings for files that must run on Linux/macOS.
+# Without this, Windows checkouts can introduce CRLF into shell scripts and
+# break them when curl|bashed on a server.
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+*.go        text eol=lf
+*.mod       text eol=lf
+*.sum       text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.toml      text eol=lf
+*.simple    text eol=lf
+guide.txt   text eol=lf

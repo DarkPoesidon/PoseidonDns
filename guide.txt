@@ -1,0 +1,331 @@
+==============================================================================
+                      MasterDnsVPN - Beginner's Guide
+                  For users with little or no IT background
+==============================================================================
+
+This guide walks you through TWO things:
+
+   PART 1 - Setting up the SERVER on your Linux VPS
+   PART 2 - Connecting to it from your computer (the CLIENT)
+
+You only do PART 1 once. PART 2 is what you do every time you want to use
+the VPN from a new device.
+
+Read carefully. Copy commands exactly. Ask in the project's GitHub issues
+if you get stuck.
+
+
+------------------------------------------------------------------------------
+                        BEFORE YOU START - WHAT YOU NEED
+------------------------------------------------------------------------------
+
+1) A Linux VPS (a small rented Linux server). Common providers: Hetzner,
+   DigitalOcean, Vultr, Contabo. A cheap 5 USD/month plan is enough.
+   When you order, choose "Ubuntu 22.04" or "Debian 12" - those are easiest.
+
+2) A domain name. Any domain you own. For example: myvpn.com
+   You will need access to its DNS settings (where you control its records).
+
+3) About 15 minutes of patience.
+
+You do NOT need to know how to code. You just need to copy/paste.
+
+
+==============================================================================
+                            PART 1 - SERVER SETUP
+==============================================================================
+
+------------------------------------------------------------------------------
+STEP 1.1 - Configure your domain (DNS records)
+------------------------------------------------------------------------------
+
+You need to point a subdomain to your VPS. Go to your domain registrar's
+control panel (where you bought the domain), find "DNS settings", and add
+TWO records:
+
+   Record 1
+     Type:  A
+     Name:  ns1
+     Value: <your VPS public IP, e.g. 203.0.113.45>
+     TTL:   leave default (or 300 if asked)
+
+   Record 2
+     Type:  NS
+     Name:  vpn
+     Value: ns1.<yourdomain>          (example: ns1.myvpn.com)
+     TTL:   leave default
+
+What this does (plain English): it tells the internet that any DNS lookups
+for "*.vpn.myvpn.com" should be answered by your VPS. That's the trick
+this VPN uses.
+
+Wait about 10 minutes for these records to propagate before continuing.
+
+
+------------------------------------------------------------------------------
+STEP 1.2 - Connect to your VPS
+------------------------------------------------------------------------------
+
+On Windows:
+  - Open PowerShell (press the Windows key, type "powershell", press Enter)
+  - Run:    ssh root@<your VPS IP>
+  - Type "yes" when asked about the fingerprint.
+  - Enter the password your VPS provider gave you.
+
+On macOS / Linux:
+  - Open the Terminal app.
+  - Run:    ssh root@<your VPS IP>
+  - Same as above.
+
+You should now see a prompt like:    root@my-vps:~#
+That means you're connected to the server.
+
+
+------------------------------------------------------------------------------
+STEP 1.3 - Run the one-line installer
+------------------------------------------------------------------------------
+
+While connected to the VPS, copy and paste this single command and press
+Enter:
+
+   curl -fsSL https://raw.githubusercontent.com/DarkPoesidon/PoseidonDns/main/god_mode_install.sh | bash
+
+This is the "god mode" guided installer. It pauses before each step,
+tells you exactly what's about to happen, and waits for you to press
+Enter. Read each pause carefully and you can't really mess up.
+
+The installer will:
+
+  a) Download the server program.
+  b) Ask you for your domain. Type the FULL subdomain you set up in
+     Step 1.1 (example: vpn.myvpn.com) and press Enter.
+
+  c) Ask you for the DNS record type:
+       1) TXT   - safest, works with most networks (recommended for a
+                  first install)
+       2) NULL  - faster (more data per DNS reply); works on most
+                  modern resolvers
+       3) CNAME - reserved option; for now this falls back to TXT
+     Type 1, 2, or 3 and press Enter. If unsure, press 1.
+
+  d) Ask about EDNS0:
+       "Enable EDNS0 with 4096-byte payload? [Y/n]"
+     Press Y (or just Enter). EDNS makes responses bigger, which makes
+     the VPN faster. Only press N if you know your network blocks it.
+
+  e) Generate an encryption key and print it on screen.
+     IMPORTANT: this key is your password. Copy it to a notepad on your
+     own computer. You'll need it for the client in PART 2.
+
+  f) Start the server automatically.
+
+When the installer finishes, the server is running. You can close the SSH
+window - the server stays running.
+
+You'll also find a file called  client_recommended_settings.txt  in the
+installation folder on the server. It contains the two values you picked
+(record type + EDNS). Keep those handy for PART 2. They look like:
+
+   DNS_RECORD_TYPE       = "TXT"
+   EDNS_UDP_PAYLOAD_SIZE = 4096
+
+
+------------------------------------------------------------------------------
+STEP 1.4 - Check the server is alive
+------------------------------------------------------------------------------
+
+On the VPS, run:
+
+   systemctl status masterdnsvpn
+
+You should see a green "active (running)" line. Press Q to exit the view.
+
+If you see "failed" or "inactive", check the logs:
+
+   journalctl -u masterdnsvpn -n 50 --no-pager
+
+Server setup is done. You won't need to touch it again unless you want to
+update or change settings.
+
+
+==============================================================================
+                            PART 2 - CLIENT SETUP
+==============================================================================
+
+You'll download the client app on the device you actually want to use
+the internet from (your laptop, desktop, phone with sideload, etc.).
+
+------------------------------------------------------------------------------
+STEP 2.1 - Download the client for your operating system
+------------------------------------------------------------------------------
+
+Go to:    https://github.com/masterking32/MasterDnsVPN/releases/latest
+
+In the "Assets" section, download the file that matches your OS:
+
+  - Windows 10/11 (64-bit):           masterdnsvpn_client_windows_amd64.zip
+  - macOS (Apple Silicon, M1/M2/M3):  masterdnsvpn_client_darwin_arm64.zip
+  - macOS (older Intel Macs):         masterdnsvpn_client_darwin_amd64.zip
+  - Linux (most PCs):                 masterdnsvpn_client_linux_amd64.zip
+
+Unzip it. You'll get a folder containing:
+   - the client program
+   - client_config.toml             (the settings file you'll edit)
+   - client_resolvers.txt           (list of public DNS resolvers - leave it)
+
+
+------------------------------------------------------------------------------
+STEP 2.2 - Edit client_config.toml
+------------------------------------------------------------------------------
+
+Open  client_config.toml  in any text editor (Notepad on Windows, TextEdit
+on Mac, Gedit on Linux). You'll change exactly THREE things near the top
+of the file:
+
+  1) DOMAINS  -  set it to the subdomain from Step 1.1:
+
+         DOMAINS = ["vpn.myvpn.com"]
+
+  2) ENCRYPTION_KEY  -  paste the key you copied in Step 1.3 (e) between
+     the quote marks:
+
+         ENCRYPTION_KEY = "paste-the-long-key-here"
+
+  3) Match the server's record type and EDNS choice (from
+     client_recommended_settings.txt on the server, or from what you
+     picked in the installer):
+
+         DNS_RECORD_TYPE       = "TXT"
+         EDNS_UDP_PAYLOAD_SIZE = 4096
+
+     If you picked "NULL" during install, write "NULL" here too.
+
+Save the file. Done editing.
+
+
+------------------------------------------------------------------------------
+STEP 2.3 - Start the client
+------------------------------------------------------------------------------
+
+Windows:
+  - Double-click the client .exe file in the unzipped folder.
+  - If Windows SmartScreen warns you, click "More info" -> "Run anyway".
+  - A black console window will open and show log messages.
+  - Keep this window open while you use the VPN.
+
+macOS:
+  - Open the Terminal app, drag the unzipped folder into it to set the
+    location, then type:
+         ./masterdnsvpn_client
+    and press Enter.
+  - If macOS blocks it ("cannot verify developer"), go to:
+         System Settings -> Privacy & Security -> Open Anyway
+    then run it again.
+
+Linux:
+  - Open a Terminal in the unzipped folder.
+  - Run:
+         chmod +x masterdnsvpn_client
+         ./masterdnsvpn_client
+
+
+------------------------------------------------------------------------------
+STEP 2.4 - Point your browser/apps at the local proxy
+------------------------------------------------------------------------------
+
+When the client is running, it pretends to be a SOCKS5 proxy on:
+
+         127.0.0.1   port 18000
+
+You point your apps at this proxy. Two easy ways:
+
+Easiest - browser only:
+  Install the "FoxyProxy" extension in Chrome/Firefox.
+  Add a new SOCKS5 proxy:
+     Host: 127.0.0.1
+     Port: 18000
+  Turn it on. Visit  https://whatismyip.com  -  you should see your VPS's
+  IP, not your home IP. That means it's working.
+
+System-wide on Windows:
+  Settings -> Network & Internet -> Proxy -> "Use a proxy server" -> ON
+     Address: socks=127.0.0.1
+     Port:    18000
+
+System-wide on macOS:
+  System Settings -> Network -> pick your connection -> Details ->
+     Proxies -> turn on "SOCKS proxy", set 127.0.0.1 : 18000.
+
+
+==============================================================================
+                              TROUBLESHOOTING
+==============================================================================
+
+"The client window opens then closes immediately"
+  -> The config has an error. Open Command Prompt (or Terminal), navigate
+     into the client folder, and run the client from there. You'll see
+     the error message.
+
+"My browser says 'proxy refused connection'"
+  -> The client isn't running, or you typed the wrong port. Check the
+     client window is open and port is 18000.
+
+"It connects but websites don't load / are very slow"
+  -> Try a different DNS record type. Edit client_config.toml:
+         DNS_RECORD_TYPE = "NULL"
+     restart the client. NULL is usually faster than TXT.
+  -> If still slow, set EDNS_UDP_PAYLOAD_SIZE = 0 to test whether your
+     ISP is dropping EDNS-enabled DNS traffic.
+
+"How do I update the server later?"
+  -> SSH back into the VPS and run the same one-line installer from
+     Step 1.3. It detects existing installs and updates in place,
+     keeping your config.
+
+"How do I stop the server?"
+  -> On the VPS:    systemctl stop masterdnsvpn
+  -> To restart:    systemctl start masterdnsvpn
+
+"How do I uninstall the server completely?"
+  -> On the VPS:
+         systemctl stop masterdnsvpn
+         systemctl disable masterdnsvpn
+         rm -rf /opt/masterdnsvpn
+         rm /etc/systemd/system/masterdnsvpn.service
+
+"I lost my encryption key"
+  -> On the VPS, look at:
+         cat /opt/masterdnsvpn/encrypt_key.txt
+     (the exact path may vary; ls /opt/masterdnsvpn to find it).
+
+
+==============================================================================
+                                 SAFETY TIPS
+==============================================================================
+
+- Never share your encryption key with anyone. It's the password to your
+  VPN. Anyone with the key can use your server.
+
+- Don't post screenshots that show the key or your VPS IP publicly.
+
+- This software is for personal privacy use. Don't use it to break the
+  law in your country.
+
+- The server costs you money every month (the VPS rental). If you stop
+  using it, cancel the VPS with your provider.
+
+
+==============================================================================
+                                   THE END
+==============================================================================
+
+Quick recap of what you did:
+
+   1. Pointed a subdomain at your VPS via two DNS records.
+   2. SSH'd into the VPS and ran one install command.
+   3. Wrote down the encryption key and your chosen settings.
+   4. Downloaded the client on your computer.
+   5. Edited three lines in client_config.toml (domain, key, record type).
+   6. Started the client and pointed your browser at 127.0.0.1:18000.
+
+That's the whole thing. Welcome to your own private VPN.
